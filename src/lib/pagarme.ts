@@ -294,7 +294,7 @@ export class PagarmeAPI {
  * Cria instância de API client com variável de ambiente
  */
 export function getPagarmeAPI(): PagarmeAPI {
-  const apiKey = process.env.PAGARME_API_KEY;
+  const apiKey = process.env.PAGARME_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
       "PAGARME_API_KEY environment variable is not configured"
