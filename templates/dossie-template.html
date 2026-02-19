@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dossiê de Defesa - {{chargebackId}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      color: #000;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .no-print {
+        display: none;
+      }
+      .page-break {
+        page-break-before: always;
+        margin-top: 0;
+      }
+      .avoid-break {
+        page-break-inside: avoid;
+      }
+    }
+
+    .document {
+      max-width: 8.5in;
+      height: 11in;
+      margin: 0 auto;
+      background: white;
+      padding: 1in;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #333;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      font-size: 10pt;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .header-title {
+      font-size: 14pt;
+      font-weight: bold;
+      margin: 10px 0;
+      text-transform: uppercase;
+    }
+
+    .header-date {
+      font-size: 10pt;
+      color: #666;
+    }
+
+    /* Footer */
+    .footer {
+      position: fixed;
+      bottom: 0.5in;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 10pt;
+      color: #999;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+    }
+
+    .page-number::after {
+      content: " de 5";
+    }
+
+    /* Content Sections */
+    .section {
+      margin-bottom: 20px;
+      text-align: justify;
+    }
+
+    .section-title {
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 15px 0 10px 0;
+      border-left: 3px solid #333;
+      padding-left: 10px;
+    }
+
+    .subsection-title {
+      font-size: 11pt;
+      font-weight: bold;
+      margin: 10px 0 5px 0;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+    }
+
+    table td,
+    table th {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+
+    table td {
+      font-size: 11pt;
+    }
+
+    /* Highlights */
+    .highlight {
+      background-color: #ffffcc;
+      padding: 2px 4px;
+    }
+
+    .important {
+      background-color: #fff0f0;
+      border-left: 3px solid #d32f2f;
+      padding: 10px;
+      margin: 10px 0;
+    }
+
+    .success {
+      background-color: #f0fff0;
+      border-left: 3px solid #388e3c;
+      padding: 10px;
+      margin: 10px 0;
+    }
+
+    /* Lists */
+    ol, ul {
+      margin-left: 30px;
+      margin-bottom: 10px;
+    }
+
+    li {
+      margin-bottom: 5px;
+      line-height: 1.6;
+    }
+
+    /* Controls */
+    .controls {
+      margin-top: 20px;
+      text-align: center;
+      gap: 10px;
+    }
+
+    .btn {
+      background-color: #1976d2;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12pt;
+      margin-right: 5px;
+    }
+
+    .btn:hover {
+      background-color: #1565c0;
+    }
+
+    .btn-secondary {
+      background-color: #666;
+    }
+
+    .btn-secondary:hover {
+      background-color: #555;
+    }
+
+    /* Helper text */
+    .helper {
+      font-size: 10pt;
+      color: #666;
+      font-style: italic;
+      margin: 5px 0;
+    }
+
+    /* Checklist */
+    .checklist {
+      margin: 10px 0;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .checklist-item input[type="checkbox"] {
+      margin-right: 10px;
+      margin-top: 2px;
+    }
+
+    /* Page setup for printing */
+    @page {
+      size: letter;
+      margin: 0.5in;
+    }
+
+    /* Break control */
+    .avoid-break {
+      page-break-inside: avoid;
+    }
+
+    .page-break-before {
+      page-break-before: always;
+      margin-top: 0;
+    }
+
+    /* Special formatting for legal text */
+    .legal-citation {
+      font-style: italic;
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+
+    .legal-paragraph {
+      text-align: justify;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="document">
+    <!-- HEADER -->
+    <div class="header">
+      <div class="logo">CONTESTAÇÃO SAAS</div>
+      <div class="header-title">Dossiê de Defesa</div>
+      <div class="header-title" style="font-size: 16pt; color: #d32f2f;">
+        Chargeback {{chargebackId}}
+      </div>
+      <div class="header-date">
+        Gerado em {{generatedDate}}<br>
+        Versão: {{version}}
+      </div>
+    </div>
+
+    <!-- SECTION 1: INFORMAÇÕES DA DISPUTA -->
+    <div class="section">
+      <h2 class="section-title">1. Informações da Disputa</h2>
+      
+      <table>
+        <tr>
+          <td><strong>ID do Chargeback:</strong></td>
+          <td>{{chargebackId}}</td>
+        </tr>
+        <tr>
+          <td><strong>Data de Abertura:</strong></td>
+          <td>{{chargebackDate}}</td>
+        </tr>
+        <tr>
+          <td><strong>Valor em Disputa:</strong></td>
+          <td>{{chargebackAmount}}</td>
+        </tr>
+        <tr>
+          <td><strong>Moeda:</strong></td>
+          <td>{{currency}}</td>
+        </tr>
+        <tr>
+          <td><strong>Motivo Declarado:</strong></td>
+          <td>{{chargebackReason}}</td>
+        </tr>
+        <tr>
+          <td><strong>Status Atual:</strong></td>
+          <td>{{chargebackStatus}}</td>
+        </tr>
+      </table>
+
+      <div class="important">
+        <strong>⚠️ Nota Importante:</strong> Este dossiê foi gerado automaticamente e deve ser revisado por um profissional jurídico antes da submissão.
+      </div>
+    </div>
+
+    <!-- SECTION 2: DADOS DA TRANSAÇÃO -->
+    <div class="section avoid-break">
+      <h2 class="section-title">2. Dados da Transação Originária</h2>
+
+      <table>
+        <tr>
+          <td><strong>Data da Transação:</strong></td>
+          <td>{{transactionDate}}</td>
+        </tr>
+        <tr>
+          <td><strong>Valor Autorizado:</strong></td>
+          <td>{{transactionAmount}}</td>
+        </tr>
+        <tr>
+          <td><strong>Número do Pedido:</strong></td>
+          <td>{{orderId}}</td>
+        </tr>
+        <tr>
+          <td><strong>Bandeira do Cartão:</strong></td>
+          <td>{{cardBrand}}</td>
+        </tr>
+        <tr>
+          <td><strong>Últimos 4 Dígitos:</strong></td>
+          <td>{{lastFourDigits}}</td>
+        </tr>
+        <tr>
+          <td><strong>Método de Pagamento:</strong></td>
+          <td>{{paymentMethod}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- SECTION 3: DADOS DO CLIENTE -->
+    <div class="section avoid-break">
+      <h2 class="section-title">3. Informações do Cliente</h2>
+
+      <table>
+        <tr>
+          <td><strong>Nome Completo:</strong></td>
+          <td>{{customerName}}</td>
+        </tr>
+        <tr>
+          <td><strong>E-mail:</strong></td>
+          <td>{{customerEmail}}</td>
+        </tr>
+        <tr>
+          <td><strong>Telefone:</strong></td>
+          <td>{{customerPhone}}</td>
+        </tr>
+        <tr>
+          <td><strong>CPF:</strong></td>
+          <td>{{customerCpf}}</td>
+        </tr>
+        <tr>
+          <td><strong>Endereço de Entrega:</strong></td>
+          <td>{{customerAddress}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- PAGE BREAK -->
+    <div class="page-break-before"></div>
+
+    <!-- SECTION 4: ITENS DO PEDIDO -->
+    <div class="section avoid-break">
+      <h2 class="section-title">4. Itens do Pedido</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th>Quantidade</th>
+            <th>Valor Unit.</th>
+            <th>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#items}}
+          <tr>
+            <td>{{itemName}}</td>
+            <td style="text-align: center;">{{itemQuantity}}</td>
+            <td style="text-align: right;">{{itemPrice}}</td>
+            <td style="text-align: right;">{{itemSubtotal}}</td>
+          </tr>
+          {{/items}}
+          <tr style="font-weight: bold; background-color: #f0f0f0;">
+            <td colspan="3" style="text-align: right;">TOTAL:</td>
+            <td style="text-align: right;">{{totalAmount}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECTION 5: RASTREAMENTO E ENTREGA -->
+    <div class="section avoid-break">
+      <h2 class="section-title">5. Rastreamento e Status de Entrega</h2>
+
+      {{#hasTracking}}
+      <div class="success">
+        <strong>✓ Pedido Rastreado e Entregue</strong>
+      </div>
+
+      <table>
+        <tr>
+          <td><strong>Código de Rastreamento:</strong></td>
+          <td>{{trackingCode}}</td>
+        </tr>
+        <tr>
+          <td><strong>Transportadora:</strong></td>
+          <td>{{trackingProvider}}</td>
+        </tr>
+        <tr>
+          <td><strong>Status de Entrega:</strong></td>
+          <td>{{shippingStatus}}</td>
+        </tr>
+        <tr>
+          <td><strong>Data de Entrega:</strong></td>
+          <td>{{actualDeliveryDate}}</td>
+        </tr>
+      </table>
+
+      <div class="subsection-title">Histórico de Rastreamento:</div>
+      <ol>
+        {{#trackingEvents}}
+        <li>
+          <strong>{{eventDate}}</strong> - {{eventStatus}}
+          {{#eventDescription}}<br><em>{{eventDescription}}</em>{{/eventDescription}}
+        </li>
+        {{/trackingEvents}}
+      </ol>
+      {{/hasTracking}}
+
+      {{^hasTracking}}
+      <div class="important">
+        <strong>⚠️ Aviso:</strong> Dados de rastreamento não disponíveis. A defesa pode ser prejudicada sem comprovação de entrega.
+      </div>
+      {{/hasTracking}}
+    </div>
+
+    <!-- SECTION 6: DADOS SHOPIFY (Opcional) -->
+    {{#hasShopify}}
+    <div class="section avoid-break">
+      <h2 class="section-title">6. Informações Adicionais - Shopify</h2>
+
+      <table>
+        <tr>
+          <td><strong>ID do Pedido Shopify:</strong></td>
+          <td>{{shopifyOrderId}}</td>
+        </tr>
+        <tr>
+          <td><strong>Status Financeiro:</strong></td>
+          <td>{{shopifyFinancialStatus}}</td>
+        </tr>
+        <tr>
+          <td><strong>Status de Fulfillment:</strong></td>
+          <td>{{shopifyFulfillmentStatus}}</td>
+        </tr>
+        <tr>
+          <td><strong>Data de Criação:</strong></td>
+          <td>{{shopifyCreatedAt}}</td>
+        </tr>
+      </table>
+
+      <div class="subsection-title">Detalhes de Fulfillment:</div>
+      {{#shopifyFulfillments}}
+      <p>
+        <strong>{{fulfillmentDate}}</strong> - Status: <span class="highlight">{{fulfillmentStatus}}</span>
+        {{#fulfillmentTracking}}
+        <br>Rastreamento: {{fulfillmentTracking}}
+        {{/fulfillmentTracking}}
+      </p>
+      {{/shopifyFulfillments}}
+    </div>
+    {{/hasShopify}}
+
+    <!-- PAGE BREAK -->
+    <div class="page-break-before"></div>
+
+    <!-- SECTION 7: ANÁLISE DE RISCO -->
+    <div class="section avoid-break">
+      <h2 class="section-title">7. Análise de Risco e Viabilidade</h2>
+
+      <div class="success">
+        <strong>Viabilidade da Defesa: {{viabilityScore}}%</strong>
+      </div>
+
+      <div class="subsection-title">Checklist de Evidências:</div>
+      <div class="checklist">
+        <div class="checklist-item">
+          <input type="checkbox" {{#proofOfDelivery}}checked{{/proofOfDelivery}} disabled>
+          <span>✓ Comprovação de Entrega (rastreamento)</span>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" {{#customerReceived}}checked{{/customerReceived}} disabled>
+          <span>✓ Dados indicam que cliente recebeu o produto</span>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" {{#noDiscrepancies}}checked{{/noDiscrepancies}} disabled>
+          <span>✓ Sem discrepâncias entre Pagar.me e Shopify</span>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" {{#withinReturnWindow}}checked{{/withinReturnWindow}} disabled>
+          <span>✓ Fora do prazo de arrependimento (7 dias pós-entrega)</span>
+        </div>
+      </div>
+
+      {{#discrepancies}}
+      <div class="important">
+        <strong>⚠️ Discrepâncias Encontradas:</strong>
+        <ul>
+          {{#discrepancies}}
+          <li>{{.}}</li>
+          {{/discrepancies}}
+        </ul>
+      </div>
+      {{/discrepancies}}
+    </div>
+
+    <!-- SECTION 8: BASE LEGAL -->
+    <div class="section avoid-break">
+      <h2 class="section-title">8. Fundamentação Legal</h2>
+
+      <p class="legal-paragraph">
+        A defesa apresentada neste dossiê fundamenta-se nas seguintes disposições legais:
+      </p>
+
+      <div class="legal-citation">
+        <strong>Art. 42-A do Código de Defesa do Consumidor (Lei 8.078/90):</strong>
+        <p class="legal-paragraph">
+          "A cobrança de débito já pago pelo consumidor será imediatamente cancelada, 
+          sem prejuízo de outras sanções cabíveis, repetindo-se o indébito por valor 
+          igual ao dobro do cobrado indevidamente, acrescido de perdas e danos, quando 
+          couber, salvo engano justificável."
+        </p>
+        <p class="helper">Aplicável: Garante transparência na cobrança e responsabilidade por cobranças indevidas.</p>
+      </div>
+
+      <div class="legal-citation">
+        <strong>Art. 49 do Código de Defesa do Consumidor (Lei 8.078/90):</strong>
+        <p class="legal-paragraph">
+          "O consumidor pode desistir do contrato, no prazo de 7 dias a contar de 
+          sua assinatura ou do ato de recebimento do produto ou serviço, sempre que 
+          a contratação de fornecimento de produtos e serviços ocorrer fora do 
+          estabelecimento comercial, especialmente por telefone ou a domicílio."
+        </p>
+        <p class="helper">Aplicável: O direito de arrependimento é de 7 dias após recebimento. 
+          Se o chargeback é posterior, configura abuso de direito.</p>
+      </div>
+
+      <div class="legal-citation">
+        <strong>Resolução BCB nº 150, de 2024:</strong>
+        <p class="legal-paragraph">
+          "Os prestadores de serviço de arranjos de pagamento (como a Pagar.me) 
+          são responsáveis pela adequada análise e tratamento de contestações de 
+          transações, respeitando os direitos do consumidor e do estabelecimento."
+        </p>
+        <p class="helper">Aplicável: Estabelece responsabilidade do arranjo no julgamento imparcial de chargebacks.</p>
+      </div>
+
+      <p class="legal-paragraph">
+        <strong>Jurisprudência Consolidada (STJ):</strong> Chargebacks abusivos, 
+        quando há comprovação de entrega da mercadoria e recebimento pelo cliente, 
+        constituem abuso de direito do consumidor e geram obrigação de indenização.
+      </p>
+    </div>
+
+    <!-- PAGE BREAK -->
+    <div class="page-break-before"></div>
+
+    <!-- SECTION 9: PARECER JURÍDICO -->
+    <div class="section avoid-break">
+      <h2 class="section-title">9. Parecer Jurídico</h2>
+
+      <div class="subsection-title">Análise e Argumentação:</div>
+
+      {{#legalAnalysis}}
+      <p class="legal-paragraph">{{legalAnalysis}}</p>
+      {{/legalAnalysis}}
+
+      {{#arguments}}
+      <div class="subsection-title">Argumentos Principais:</div>
+      <ol>
+        {{#arguments}}
+        <li class="legal-paragraph">{{.}}</li>
+        {{/arguments}}
+      </ol>
+      {{/arguments}}
+
+      <div class="subsection-title" style="margin-top: 20px;">Recomendação:</div>
+      {{#recommendation}}
+      <div class="success" style="background-color: #e3f2fd; border-left-color: #1976d2;">
+        <strong>{{recommendation}}</strong>
+      </div>
+      {{/recommendation}}
+    </div>
+
+    <!-- SECTION 10: CONCLUSÃO -->
+    <div class="section avoid-break">
+      <h2 class="section-title">10. Conclusão</h2>
+
+      <p class="legal-paragraph">
+        Com base nas evidências documentadas neste dossiê, especialmente a comprovação 
+        de entrega e o histórico de rastreamento, existe fundamentação sólida para 
+        contestação do chargeback junto ao operador de cartão de crédito.
+      </p>
+
+      <p class="legal-paragraph">
+        Recomenda-se que este dossiê seja analisado por um profissional jurídico 
+        qualificado antes da submissão formal de defesa ao arranjo de pagamento 
+        (Pagar.me).
+      </p>
+
+      <p class="legal-paragraph">
+        <strong>Responsabilidade:</strong> Este documento foi gerado automaticamente 
+        e serve apenas como referência técnica. A responsabilidade pelo conteúdo 
+        e exatidão das informações recai sobre o usuario.
+      </p>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div class="page-number">Página <span class="current-page">1</span></div>
+    </div>
+  </div>
+
+  <!-- CONTROLS (não imprime) -->
+  <div class="controls no-print" style="margin-top: 30px; text-align: center;">
+    <button class="btn" onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button>
+    <button class="btn btn-secondary" onclick="window.close()">Fechar</button>
+  </div>
+
+  <script>
+    // Update page numbers on print
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeprint', () => {
+        const pageCount = Math.ceil(document.body.scrollHeight / (11 * 96)); // 11 inches in pixels
+        document.querySelector('.current-page').textContent = pageCount;
+      });
+    }
+  </script>
+</body>
+</html>

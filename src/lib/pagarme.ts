@@ -214,13 +214,14 @@ export class PagarmeAPI {
    */
   async submitChargebackDefense(
     chargebackId: string,
-    evidenceFile: Buffer,
+    evidenceFile: Buffer | Uint8Array,
     evidenceType: "document" | "email" | "other" = "document"
   ): Promise<{ status: string; message: string }> {
     try {
       // Cria form-data com arquivo
       const formData = new FormData();
-      formData.append("file", new Blob([evidenceFile], { type: "application/pdf" }), `defesa_${chargebackId}.pdf`);
+      const buffer = Buffer.isBuffer(evidenceFile) ? evidenceFile : Buffer.from(evidenceFile);
+      formData.append("file", new Blob([buffer.toString("base64")], { type: "application/pdf" }), `defesa_${chargebackId}.pdf`);
       formData.append("evidence_type", evidenceType);
 
       const response = await fetch(

@@ -1,0 +1,471 @@
+{
+  "name": "Automação de Chargeback - Contestação SaaS",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "chargeback-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger - Pagar.me",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "{{ env.N8N_WEBHOOK_ID }}",
+      "notes": "Recebe eventos: charge.chargebacked, chargeback.created, chargeback.updated"
+    },
+    {
+      "parameters": {
+        "authentication": "customAuth",
+        "customAuth": {
+          "authentication": "basicAuth",
+          "user": "={{ env.PAGARME_API_KEY }}",
+          "password": ""
+        },
+        "requestMethod": "POST",
+        "url": "https://api.pagar.me/core/v5/charges/{{$node[\"webhook-trigger\"].json.data.charge_id}}",
+        "options": {},
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "id": "http-pagarme-charge",
+      "name": "HTTP - Buscar Charge da Pagar.me",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        250
+      ],
+      "dependsOn": [
+        "webhook-trigger"
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "customAuth",
+        "customAuth": {
+          "authentication": "basicAuth",
+          "user": "={{ env.SHOPIFY_API_ACCESS_TOKEN }}",
+          "password": ""
+        },
+        "requestMethod": "GET",
+        "url": "https://{{ env.SHOPIFY_STORE_URL }}/admin/api/{{ env.SHOPIFY_API_VERSION }}/orders/search.json?query=name:{{ $node[\"webhook-trigger\"].json.data.order_id }}",
+        "options": {},
+        "headers": {
+          "X-Shopify-Access-Token": "{{ env.SHOPIFY_API_ACCESS_TOKEN }}"
+        }
+      },
+      "id": "http-shopify-order",
+      "name": "HTTP - Buscar Order Shopify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        450
+      ],
+      "dependsOn": [
+        "webhook-trigger"
+      ],
+      "notes": "Retorna vazio se SHOPIFY_API_ACCESS_TOKEN não configurado"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": true,
+        "jsCode": "// Validar HMAC SHA-256 do webhook\nconst crypto = require('crypto');\nconst payload = $input.body.rawBody || JSON.stringify($input.body);\nconst signature = $headers['x-hub-signature'];\nconst expectedSignature = crypto\n  .createHmac('sha256', process.env.PAGARME_WEBHOOK_SECRET)\n  .update(payload)\n  .digest('hex');\n\nconst isValid = signature === expectedSignature;\n\nreturn {\n  valid: isValid,\n  signature: signature,\n  expected: expectedSignature,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "code-hmac-validation",
+      "name": "Code - Validar HMAC SHA-256",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        250,
+        500
+      ],
+      "dependsOn": [
+        "webhook-trigger"
+      ]
+    },
+    {
+      "parameters": {
+        "database": "{{ env.DATABASE_URL }}",
+        "queryType": "raw",
+        "query": "INSERT INTO webhook_logs (event_type, webhook_id, payload, signature_valid, created_at)\nVALUES (\n  '{{ $node[\"webhook-trigger\"].json.type }}',\n  '{{ $node[\"webhook-trigger\"].json.data.id }}',\n  '{{ JSON.stringify($node[\"webhook-trigger\"].json.data) }}'::jsonb,\n  {{ $node[\"code-hmac-validation\"].json.valid }},\n  CURRENT_TIMESTAMP\n)\nRETURNING id;"
+      },
+      "id": "postgres-webhook-log",
+      "name": "PostgreSQL - Salvar Webhook Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        750,
+        400
+      ],
+      "dependsOn": [
+        "code-hmac-validation"
+      ]
+    },
+    {
+      "parameters": {
+        "database": "{{ env.DATABASE_URL }}",
+        "queryType": "raw",
+        "query": "INSERT INTO chargebacks (\n  chargeback_id,\n  order_id,\n  amount,\n  currency,\n  reason,\n  status,\n  metadata,\n  received_at\n) VALUES (\n  '{{ $node[\"http-pagarme-charge\"].json.chargeback_id }}',\n  '{{ $node[\"http-pagarme-charge\"].json.metadata.order_id }}',\n  {{ $node[\"http-pagarme-charge\"].json.amount }} / 100,\n  '{{ $node[\"http-pagarme-charge\"].json.currency || \"BRL\" }}',\n  '{{ $node[\"http-pagarme-charge\"].json.reason }}',\n  'open',\n  '{{ JSON.stringify($node[\"http-pagarme-charge\"].json.data) }}'::jsonb,\n  CURRENT_TIMESTAMP\n)\nON CONFLICT (chargeback_id) DO UPDATE\nSET status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP\nRETURNING id, chargeback_id;"
+      },
+      "id": "postgres-chargeback",
+      "name": "PostgreSQL - Salvar Chargeback",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        750,
+        250
+      ],
+      "dependsOn": [
+        "http-pagarme-charge"
+      ]
+    },
+    {
+      "parameters": {
+        "database": "{{ env.DATABASE_URL }}",
+        "queryType": "raw",
+        "query": "INSERT INTO orders (\n  order_id,\n  customer_name,\n  customer_email,\n  customer_phone,\n  customer_cpf,\n  transaction_date,\n  transaction_amount,\n  currency,\n  payment_method,\n  last_four_digits,\n  card_brand,\n  shopify_order_id,\n  shopify_metadata,\n  created_at\n) VALUES (\n  '{{ $node[\"http-pagarme-charge\"].json.metadata.order_id }}',\n  '{{ $node[\"http-pagarme-charge\"].json.customer.name }}',\n  '{{ $node[\"http-pagarme-charge\"].json.customer.email }}',\n  '{{ $node[\"http-pagarme-charge\"].json.customer.phone }}',\n  '{{ $node[\"http-pagarme-charge\"].json.customer.document }}',\n  '{{ $node[\"http-pagarme-charge\"].json.created_at }}',\n  {{ $node[\"http-pagarme-charge\"].json.amount }} / 100,\n  '{{ $node[\"http-pagarme-charge\"].json.currency || \"BRL\" }}',\n  '{{ $node[\"http-pagarme-charge\"].json.payment_method }}',\n  '{{ $node[\"http-pagarme-charge\"].json.card.last_four_digits || \"\" }}',\n  '{{ $node[\"http-pagarme-charge\"].json.card.brand || \"\" }}',\n  '{{ $node[\"http-shopify-order\"].json.orders?.[0]?.id || \"\" }}',\n  '{{ JSON.stringify($node[\"http-shopify-order\"].json.orders?.[0]) }}'::jsonb,\n  CURRENT_TIMESTAMP\n)\nON CONFLICT (order_id) DO UPDATE\nSET updated_at = CURRENT_TIMESTAMP\nRETURNING id, order_id;"
+      },
+      "id": "postgres-order",
+      "name": "PostgreSQL - Salvar Order",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        750,
+        300
+      ],
+      "dependsOn": [
+        "http-pagarme-charge",
+        "http-shopify-order"
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "customAuth",
+        "customAuth": {
+          "authentication": "bearer",
+          "credentialsExpired": false,
+          "token": "{{ env.ANTHROPIC_API_KEY }}"
+        },
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "options": {},
+        "body": {
+          "contentType": "application/json",
+          "values": {
+            "model": "{{ env.CLAUDE_TRIAGE_MODEL || \"claude-haiku-4-5-20251001\" }}",
+            "max_tokens": 500,
+            "system": "Você é um especialista em chargebacks. Classifique o tipo e analise viabilidade. Retorne JSON: { \"tipo\": \"...\", \"viabilidade\": 0.0-1.0, \"motivo\": \"...\" }",
+            "messages": [
+              {
+                "role": "user",
+                "content": "Analise este chargeback:\n\nMotivo: {{ $node[\"http-pagarme-charge\"].json.reason }}\nValor: R$ {{ $node[\"http-pagarme-charge\"].json.amount / 100 }}\nPedido: {{ $node[\"http-pagarme-charge\"].json.metadata.order_id }}\nData da transação: {{ $node[\"http-pagarme-charge\"].json.created_at }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-claude-triage",
+      "name": "HTTP - Claude Triagem (Haiku)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        150
+      ],
+      "dependsOn": [
+        "http-pagarme-charge"
+      ]
+    },
+    {
+      "parameters": {
+        "toEmail": "{{ env.ADMIN_EMAIL }}",
+        "subject": "⚠️ Novo Chargeback: {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}",
+        "emailType": "html",
+        "htmlMessage": "<html><body>\n<h2>Novo Chargeback Recebido</h2>\n<p><strong>ID:</strong> {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}</p>\n<p><strong>Valor:</strong> R$ {{ $node[\"http-pagarme-charge\"].json.amount / 100 }}</p>\n<p><strong>Motivo:</strong> {{ $node[\"http-pagarme-charge\"].json.reason }}</p>\n<p><strong>Tipo:</strong> {{ $node[\"http-claude-triage\"].json.content[0].text | jsonParse | property('tipo') }}</p>\n<p><strong>Viabilidade:</strong> {{ ($node[\"http-claude-triage\"].json.content[0].text | jsonParse | property('viabilidade')) * 100 }}%</p>\n<p><a href=\"{{ env.APP_URL }}/dashboard\">Abrir Dashboard</a></p>\n</body></html>"
+      },
+      "id": "email-alert",
+      "name": "Email - Alerta Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        300
+      ],
+      "dependsOn": [
+        "http-claude-triage"
+      ]
+    },
+    {
+      "parameters": {
+        "text": "🚨 Novo Chargeback\n\n*ID:* {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}\n*Valor:* R$ {{ $node[\"http-pagarme-charge\"].json.amount / 100 }}\n*Motivo:* {{ $node[\"http-pagarme-charge\"].json.reason }}\n*Viabilidade:* {{ ($node[\"http-claude-triage\"].json.content[0].text | jsonParse | property('viabilidade')) * 100 }}%\n\n<{{ env.APP_URL }}/dashboard|Abrir Dashboard>"
+      },
+      "id": "slack-alert",
+      "name": "Slack - Notificar Chargeback",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        450
+      ],
+      "dependsOn": [
+        "http-claude-triage"
+      ],
+      "credentials": {
+          "slackApi": {
+            "id": "slack_webhook",
+            "name": "Slack Webhook",
+            "type": "slackWebhookApi"
+          }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "customAuth",
+        "customAuth": {
+          "authentication": "bearer",
+          "credentialsExpired": false,
+          "token": "{{ env.ANTHROPIC_API_KEY }}"
+        },
+        "requestMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "options": {},
+        "body": {
+          "contentType": "application/json",
+          "values": {
+            "model": "{{ env.CLAUDE_LEGAL_MODEL || \"claude-3-5-sonnet-20241022\" }}",
+            "max_tokens": 2000,
+            "system": "Você é advogado especialista em chargebacks. Gere parecer jurídico completo citando Art. 42-A e 49 do CDC, e Resolução BCB 150. Retorne JSON: { \"parecer\": \"...\", \"argumentos\": [...], \"recomendacao\": \"...\", \"confianca\": 0.0-1.0 }",
+            "messages": [
+              {
+                "role": "user",
+                "content": "Gere parecer jurídico para defesa de chargeback:\n\nChargeback ID: {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}\nMotivo: {{ $node[\"http-pagarme-charge\"].json.reason }}\nValor: R$ {{ $node[\"http-pagarme-charge\"].json.amount / 100 }}\nData da transação: {{ $node[\"http-pagarme-charge\"].json.created_at }}\nCliente: {{ $node[\"http-pagarme-charge\"].json.customer.name }}\nPedido: {{ $node[\"http-pagarme-charge\"].json.metadata.order_id }}\n\nDados adicionais:\n{{ JSON.stringify($node[\"http-pagarme-charge\"].json.metadata) }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "http-claude-legal",
+      "name": "HTTP - Claude Redação Jurídica (Sonnet)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        250
+      ],
+      "dependsOn": [
+        "http-pagarme-charge"
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": true,
+        "jsCode": "// Extrair análise de Claude e estruturar para database\nconst claudeResponse = $input.body;\nconst content = claudeResponse.content[0].text;\n\n// Parse JSON response from Claude\nlet analysis;\ntry {\n  const jsonMatch = content.match(/{[\\s\\S]*}/);\n  analysis = JSON.parse(jsonMatch[0]);\n} catch (e) {\n  analysis = {\n    parecer: content,\n    argumentos: [],\n    recomendacao: 'Análise manual necessária',\n    confianca: 0.5\n  };\n}\n\nreturn {\n  parecer: analysis.parecer,\n  argumentos: analysis.argumentos || [],\n  recomendacao: analysis.recomendacao,\n  confianca: analysis.confianca || 0.5,\n  avisos: analysis.avisos || []\n};"
+      },
+      "id": "code-parse-claude",
+      "name": "Code - Parse Resposta Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        150
+      ],
+      "dependsOn": [
+        "http-claude-legal"
+      ]
+    },
+    {
+      "parameters": {
+        "database": "{{ env.DATABASE_URL }}",
+        "queryType": "raw",
+        "query": "INSERT INTO defenses (\n  chargeback_id,\n  status,\n  defense_text,\n  defense_data,\n  includes_shopify,\n  legal_analysis,\n  viability_score,\n  created_by\n) VALUES (\n  '{{ $node[\"http-pagarme-charge\"].json.chargeback_id }}',\n  'drafted',\n  '{{ $node[\"code-parse-claude\"].json.parecer }}',\n  '{{ JSON.stringify($node[\"code-parse-claude\"].json) }}'::jsonb,\n  {{ $node[\"http-shopify-order\"].json.orders?.length > 0 }},\n  '{{ JSON.stringify({ parecer: $node[\"code-parse-claude\"].json.parecer, argumentos: $node[\"code-parse-claude\"].json.argumentos, recomendacao: $node[\"code-parse-claude\"].json.recomendacao }) }}'::jsonb,\n  {{ $node[\"code-parse-claude\"].json.confianca }},\n  'system'\n)\nON CONFLICT DO NOTHING\nRETURNING id, chargeback_id;"
+      },
+      "id": "postgres-defense",
+      "name": "PostgreSQL - Salvar Defesa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1500,
+        150
+      ],
+      "dependsOn": [
+        "code-parse-claude",
+        "postgres-chargeback"
+      ]
+    },
+    {
+      "parameters": {
+        "toEmail": "{{ $node[\"http-pagarme-charge\"].json.customer.email }}",
+        "subject": "✓ Dossiê de Defesa Preparado - Chargeback {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}",
+        "emailType": "html",
+        "htmlMessage": "<html><body>\n<h2>Dossiê de Defesa Gerado</h2>\n<p>Prezado cliente,</p>\n<p>Seu dossiê de defesa foi preparado com sucesso.</p>\n<p><strong>Chargeback:</strong> {{ $node[\"http-pagarme-charge\"].json.chargeback_id }}</p>\n<p><strong>Valor:</strong> R$ {{ $node[\"http-pagarme-charge\"].json.amount / 100 }}</p>\n<p><strong>Recomendação:</strong> {{ $node[\"code-parse-claude\"].json.recomendacao }}</p>\n<p><a href=\"{{ env.APP_URL }}/rascunhos/{{ $node[\"postgres-defense\"].json[0].id }}\">Revisar Dossiê</a></p>\n<p>Atenciosamente,<br>Contestação SaaS</p>\n</body></html>"
+      },
+      "id": "email-user",
+      "name": "Email - Notificar User",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        300
+      ],
+      "dependsOn": [
+        "postgres-defense"
+      ]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "http-pagarme-charge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "http-shopify-order",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "code-hmac-validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "code-hmac-validation": {
+      "main": [
+        [
+          {
+            "node": "postgres-webhook-log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "http-pagarme-charge": {
+      "main": [
+        [
+          {
+            "node": "postgres-chargeback",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "postgres-order",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "http-claude-triage",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "http-claude-legal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "http-shopify-order": {
+      "main": [
+        [
+          {
+            "node": "postgres-order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "postgres-chargeback": {
+      "main": [
+        [
+          {
+            "node": "postgres-defense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "http-claude-triage": {
+      "main": [
+        [
+          {
+            "node": "email-alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "slack-alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "http-claude-legal": {
+      "main": [
+        [
+          {
+            "node": "code-parse-claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "code-parse-claude": {
+      "main": [
+        [
+          {
+            "node": "postgres-defense",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "email-user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "postgres-defense": {
+      "main": [
+        [
+          {
+            "node": "email-user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "description": "Workflow completo para automação de chargeback: Webhook → Validação HMAC → Buscar dados Pagar.me/Shopify → Claude Triagem + Redação → PostgreSQL → Notificações",
+  "tags": [
+    "chargeback",
+    "automacao",
+    "claude",
+    "pagarme"
+  ]
+}

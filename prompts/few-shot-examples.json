@@ -1,0 +1,161 @@
+{
+  "version": "1.0",
+  "date": "2026-02-19",
+  "description": "Few-shot examples para melhorar qualidade de respostas do Claude em análise de chargebacks",
+  "triage_examples": [
+    {
+      "input": {
+        "chargeback_id": "chg_example_001",
+        "chargeback_reason": "produto_nao_recebido",
+        "chargeback_date": "2026-02-10",
+        "chargeback_amount": 299.99,
+        "transaction_date": "2026-01-15",
+        "order_id": "1001",
+        "customer_name": "João Silva",
+        "shipping_status": "delivered",
+        "tracking_code": "BR123456789",
+        "delivery_date": "2026-01-20",
+        "days_since_delivery": 21,
+        "has_tracking": true
+      },
+      "expected_output": {
+        "tipo": "produto_nao_recebido",
+        "viabilidade": 0.92,
+        "motivo": "Produto rastreado e entregue há 21 dias. Cliente reclamou fora do prazo de arrependimento (>7 dias). Rastreamento confirma entrega bem-sucedida.",
+        "recomendacao": "Responder chargeback com confiança máxima"
+      },
+      "notes": "Caso forte: entrega comprovada, fora do prazo de 7 dias pós-entrega"
+    },
+    {
+      "input": {
+        "chargeback_id": "chg_example_002",
+        "chargeback_reason": "fraude",
+        "chargeback_date": "2026-02-08",
+        "chargeback_amount": 150.00,
+        "transaction_date": "2026-02-06",
+        "order_id": "1002",
+        "customer_name": "Maria Santos",
+        "shipping_status": "pending",
+        "tracking_code": null,
+        "delivery_date": null,
+        "days_since_delivery": 0,
+        "has_tracking": false
+      },
+      "expected_output": {
+        "tipo": "fraude",
+        "viabilidade": 0.15,
+        "motivo": "Transação muito recente (2 dias). Sem rastreamento. Cliente pode estar dentro do período de arrependimento. Fraude é motivo complexo.",
+        "recomendacao": "Análise manual necessária antes de responder"
+      },
+      "notes": "Caso fraco: sem evidências, transação recente, potencial arrependimento legítimo"
+    },
+    {
+      "input": {
+        "chargeback_id": "chg_example_003",
+        "chargeback_reason": "desacordo_comercial",
+        "chargeback_date": "2026-02-05",
+        "chargeback_amount": 89.90,
+        "transaction_date": "2026-01-25",
+        "order_id": "1003",
+        "customer_name": "Carlos Oliveira",
+        "shipping_status": "delivered",
+        "tracking_code": "BR987654321",
+        "delivery_date": "2026-01-28",
+        "days_since_delivery": 8,
+        "has_tracking": true,
+        "shopify_financial_status": "paid",
+        "shopify_fulfillment_status": "fulfilled"
+      },
+      "expected_output": {
+        "tipo": "desacordo_comercial",
+        "viabilidade": 0.75,
+        "motivo": "Produto entregue (rastreado). Cliente reclamou 8 dias após entrega, ultrapassando prazo de 7 dias. Desacordo comercial é contestável com evidências.",
+        "recomendacao": "Responder com documentação de entrega e descrição do produto"
+      },
+      "notes": "Caso moderado: entrega comprovada, apenas 1 dia após prazo de arrependimento"
+    }
+  ],
+  "legal_analysis_examples": [
+    {
+      "input": {
+        "chargeback_id": "chg_example_001",
+        "chargeback_reason": "produto_nao_recebido",
+        "chargeback_date": "2026-02-10",
+        "chargeback_amount": 299.99,
+        "transaction_date": "2026-01-15",
+        "order_id": "1001",
+        "customer_name": "João Silva",
+        "customer_email": "joao@example.com",
+        "items": [
+          {
+            "item_name": "Produto ABC",
+            "item_quantity": 1,
+            "item_price": 299.99
+          }
+        ],
+        "tracking_code": "BR123456789",
+        "shipping_status": "delivered",
+        "delivery_date": "2026-01-20",
+        "days_since_delivery": 21
+      },
+      "expected_output": {
+        "parecer": "PARECER JURÍDICO - ANÁLISE DE CHARGEBACK\n\nContestação nº chg_example_001\nProponente: João Silva\nValor: R$ 299,99\nData da Transação: 15/01/2026\nData de Entrega: 20/01/2026\n\n1. DO FUNDAMENTO LEGAL:\n\nA presente análise fundamenta-se nas disposições do Código de Defesa do Consumidor (Lei 8.078/90), especificamente:\n\nArt. 42-A, CDC: \"A cobrança de débito já pago pelo consumidor será imediatamente cancelada, sem prejuízo de outras sanções cabíveis, repetindo-se o indébito por valor igual ao dobro do cobrado indevidamente, acrescido de perdas e danos, quando couber, salvo engano justificável.\"\n\nArt. 49, CDC: \"O consumidor pode desistir do contrato, no prazo de 7 dias a contar de sua assinatura ou do ato de recebimento do produto ou serviço, sempre que a contratação de fornecimento de produtos e serviços ocorrer fora do estabelecimento comercial, especialmente por telefone ou a domicílio.\"\n\nResolução BCB nº 150, de 2024: Responsabilidade de arranjos de pagamento (como Pagar.me) na análise imparcial de chargebacks.\n\n2. DA ANÁLISE FACTUAL:\n\nA transação em questão foi devidamente autorizada e processada em 15/01/2026 no valor de R$ 299,99, referente à venda de Produto ABC.\n\nO rastreamento do envio (código BR123456789) comprova que o produto foi entregue com sucesso em 20/01/2026, conforme confirmado pelos registros da transportadora.\n\nTranscorridos 21 dias desde a entrega, está consolidado e exaurido o direito de arrependimento previsto no Art. 49 do CDC, cuja validade é de apenas 7 dias a contar da data de recebimento.\n\n3. DA CONCLUSÃO:\n\nEvidencia-se, portanto, que a presente contestação de chargeback não encontra amparo legal, uma vez que:\n\n(a) A transação foi devidamente autorizada pelo titular do cartão;\n(b) A mercadoria foi entregue conforme comprovado por rastreamento;\n(c) O prazo de arrependimento foi excedido;\n(d) Não há indício de cobrança duplicada ou indevida.\n\nRecomenda-se, pois, a resposta formal ao chargeback, com submissão da documentação de entrega ao arranjo pagador, para fins de reversão da disputa.\n\nSem prejuízo de ulterior apelação junto aos órgãos competentes.\n\nParecer preparado em 19/02/2026.",
+        "argumentos": [
+          "Transação foi devidamente autorizada pelo titular do cartão de crédito",
+          "Rastreamento BR123456789 comprova entrega em 20/01/2026",
+          "Cliente ultrapassou prazo de arrependimento de 7 dias (Art. 49, CDC)",
+          "Chargeback após 21 dias caracteriza abuso de direito do consumidor",
+          "Arranjo de pagamento é responsável por análise imparcial (Resolução BCB 150)"
+        ],
+        "recomendacao": "RESPONDER ao chargeback com submissão de rastreamento e documentação de entrega",
+        "confianca": 0.92,
+        "avisos": []
+      },
+      "notes": "Parecer clássico forte: entrega + fora prazo = responder com confiança"
+    },
+    {
+      "input": {
+        "chargeback_id": "chg_example_002",
+        "chargeback_reason": "produto_nao_recebido",
+        "chargeback_date": "2026-02-08",
+        "chargeback_amount": 150.00,
+        "transaction_date": "2026-02-06",
+        "order_id": "1002",
+        "customer_name": "Maria Santos",
+        "customer_email": "maria@example.com",
+        "items": [
+          {
+            "item_name": "Produto XYZ",
+            "item_quantity": 1,
+            "item_price": 150.00
+          }
+        ],
+        "tracking_code": null,
+        "shipping_status": "pending",
+        "delivery_date": null,
+        "days_since_delivery": 0
+      },
+      "expected_output": {
+        "parecer": "PARECER JURÍDICO - ANÁLISE DE CHARGEBACK\n\nContestação nº chg_example_002\nProponente: Maria Santos\nValor: R$ 150,00\nData da Transação: 06/02/2026\n\n1. DO FUNDAMENTO LEGAL:\n\n[Idem anterior]\n\n2. DA ANÁLISE FACTUAL:\n\nA transação em questão foi processada em 06/02/2026 no valor de R$ 150,00, referente à venda de Produto XYZ.\n\nContudo, verifica-se que a disputa foi aberta tão somente 2 dias após a transação original (08/02/2026), sem comprovação de qualquer tentativa anterior de solução junto ao fornecedor.\n\nNão há disponível, no momento, rastreamento ou comprovação de entrega do produto, uma vez que o prazo para chegada ainda está em curso.\n\n3. DA CONCLUSÃO:\n\nDiante da ausência de comprovação de entrega e do curto espaço de tempo decorrido (2 dias), recomenda-se CAUTELA na resposta a este chargeback, pois:\n\n(a) Ainda há prazo legal de arrependimento em vigor (Art. 49, CDC);\n(b) Faltam elementos probatórios de entrega ou recusa;\n(c) Pode tratar-se de exercício legítimo de direito do consumidor.\n\nRecomenda-se análise manual e contato com o cliente antes de qualquer submissão formal.\n\nParecer preparado em 19/02/2026.",
+        "argumentos": [
+          "Transação é muito recente (apenas 2 dias)",
+          "Cliente ainda dentro do prazo de arrependimento legal (Art. 49, CDC)",
+          "Sem comprovação de entrega disponível",
+          "Falta documentação sobre tentativas de solução"
+        ],
+        "recomendacao": "ANÁLISE MANUAL necessária - Contatar cliente antes de responder",
+        "confianca": 0.25,
+        "avisos": [
+          "Cliente pode estar exercendo direito legítimo de arrependimento",
+          "Recomenda-se resolver amigavelmente antes de formaliazar resposta"
+        ]
+      },
+      "notes": "Parecer fraco: falta de evidências, cliente pode estar certo"
+    }
+  ],
+  "usage_instructions": {
+    "triage": "Use estes exemplos no system prompt do Haiku para melhorar classificação. Mostram padrões de viabilidade.",
+    "legal_analysis": "Use para ensinar Sonnet o estilo esperado de parecer jurídico. Garante citações corretas da lei.",
+    "integration": "No n8n, adicione 1-2 exemplos ao system prompt (no nó HTTP - Claude) para few-shot prompting"
+  }
+}
