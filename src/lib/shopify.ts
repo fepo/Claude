@@ -231,6 +231,121 @@ export class ShopifyAPI {
   }
 
   /**
+   * Busca pedidos por email do cliente
+   */
+  async getOrdersByEmail(email: string): Promise<ShopifyOrder[]> {
+    try {
+      const query = `
+        query SearchOrders($query: String!) {
+          orders(first: 50, query: $query) {
+            edges {
+              node {
+                id
+                name
+                email
+                createdAt
+                updatedAt
+                customer {
+                  id
+                  email
+                  firstName
+                  lastName
+                  phone
+                  defaultAddress {
+                    address1
+                    address2
+                    city
+                    province
+                    country
+                    zip
+                  }
+                }
+                lineItems(first: 100) {
+                  edges {
+                    node {
+                      id
+                      title
+                      quantity
+                      price {
+                        amount
+                      }
+                      sku
+                      variantId
+                    }
+                  }
+                }
+                fulfillments(first: 100) {
+                  edges {
+                    node {
+                      id
+                      status
+                      createdAt
+                      updatedAt
+                      trackingInfo {
+                        number
+                        company
+                        url
+                      }
+                      fulfillmentLineItems(first: 100) {
+                        edges {
+                          node {
+                            id
+                            quantity
+                            lineItem {
+                              id
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                totalPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                subtotalPriceSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+                taxPriceSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+                shippingPriceSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+                financialStatus
+                fulfillmentStatus
+                tags
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await this.request<{
+        orders: {
+          edges: Array<{
+            node: any;
+          }>;
+        };
+      }>(query, { query: `email:${email}` });
+
+      return result.orders.edges.map(edge => this.mapOrderResponse(edge.node));
+    } catch (error) {
+      console.error(`Erro ao buscar orders por email ${email}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Mapeia resposta GraphQL para interface ShopifyOrder
    */
   private mapOrderResponse(node: any): ShopifyOrder {
