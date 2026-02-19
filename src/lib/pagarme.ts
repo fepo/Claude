@@ -87,7 +87,7 @@ export class PagarmeAPI {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: `basic ${Buffer.from(`${this.apiKey}:`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${this.apiKey}:`).toString("base64")}`,
     };
 
     const options: RequestInit = {
@@ -110,26 +110,30 @@ export class PagarmeAPI {
   }
 
   /**
-   * Lista todas as contestações (chargebacks) abertas
-   * Parâmetros: status ("opened" | "won" | "lost")
+   * Lista charges com chargeback (status=chargedback)
+   * Na API v5 da Pagar.me, chargebacks são charges com status chargedback
    */
-  async getOpenChargebacks(status: string = "opened"): Promise<Chargeback[]> {
+  async getOpenChargebacks(): Promise<Chargeback[]> {
     try {
       const response = await this.request<{
         data: any[];
         paging: { total: number };
-      }>("GET", `/chargebacks?status=${status}`);
+      }>("GET", `/charges?status=chargedback&size=50`);
 
-      // Mapeia resposta da API para interface local
-      return response.data.map((cb) => ({
-        id: cb.id,
-        chargeId: cb.charge_id,
-        status: cb.status as Chargeback["status"],
-        amount: cb.amount,
-        reason: cb.reason,
-        createdAt: cb.created_at,
-        respondedAt: cb.responded_at,
-        evidence: cb.evidence,
+      if (!response.data || !Array.isArray(response.data)) return [];
+
+      // Mapeia charges para interface de Chargeback
+      return response.data.map((charge) => ({
+        id: charge.id,
+        chargeId: charge.id,
+        status: "opened" as Chargeback["status"],
+        amount: charge.amount || 0,
+        reason: charge?.metadata?.chargeback_reason ||
+          charge?.last_transaction?.gateway_response?.errors?.[0]?.message ||
+          "Chargeback",
+        createdAt: charge.created_at,
+        respondedAt: undefined,
+        evidence: undefined,
       }));
     } catch (error) {
       console.error("Erro ao listar chargebacks:", error);

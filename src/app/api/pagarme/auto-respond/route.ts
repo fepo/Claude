@@ -37,7 +37,7 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      chargebacks = await pagarme.getOpenChargebacks("opened");
+      chargebacks = await pagarme.getOpenChargebacks();
     }
 
     if (chargebacks.length === 0) {

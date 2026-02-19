@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     }
 
     const pagarme = getPagarmeAPI();
-    const chargebacks = await pagarme.getOpenChargebacks("opened");
+    const chargebacks = await pagarme.getOpenChargebacks();
 
     // Enriquece com dados do pedido
     const enriched = await Promise.all(
