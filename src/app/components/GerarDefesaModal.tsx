@@ -33,7 +33,7 @@ export default function GerarDefesaModal({
   >([
     { name: "Pagar.me", status: "success", message: "Dados carregados" },
     { name: "Shopify", status: "loading", message: "Buscando pedido..." },
-    { name: "Transportadora", status: "pending", message: "Aguardando..." },
+    { name: "Correios / Transportadora", status: "pending", message: "Aguardando..." },
   ]);
   const [error, setError] = useState<string | null>(null);
   const [shopifyOrder, setShopifyOrder] = useState<string | null>(null);

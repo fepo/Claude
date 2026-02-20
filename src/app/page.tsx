@@ -75,6 +75,8 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
   const [showVerificar, setShowVerificar] = useState(false);
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
+  const [autoFillFeedback, setAutoFillFeedback] = useState<string | null>(null);
 
   // ── Auto-save + carregar auto-save ao montar ────────────
   useEffect(() => {
@@ -121,6 +123,7 @@ export default function HomePage() {
     setForm(emptyForm);
     setShowDashboard(false);
     setStep(0);
+    setAutoFillFeedback(null);
   };
 
   // ── Auto-save a cada 30s ──────────────────────────────
@@ -208,6 +211,32 @@ export default function HomePage() {
   // ── Submit ────────────────────────────────────────────
   const handleSubmit = () => {
     setShowVerificar(true);
+  };
+
+  const handleAutoFill = async () => {
+    try {
+      setAutoFillLoading(true);
+      setAutoFillFeedback(null);
+
+      const response = await fetch("/api/form/autofill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data?.error || "Falha ao auto-preencher");
+      }
+
+      setForm(data.form);
+      const completed = (data.steps || []).filter((s: any) => s.status === "success").length;
+      setAutoFillFeedback(`Auto-preenchimento concluído (${completed}/${(data.steps || []).length} fontes).`);
+    } catch (error) {
+      setAutoFillFeedback(error instanceof Error ? error.message : "Erro no auto-preenchimento");
+    } finally {
+      setAutoFillLoading(false);
+    }
   };
 
   const handleConfirmarGerar = async () => {
@@ -715,6 +744,27 @@ export default function HomePage() {
             </svg>
             Voltar ao Dashboard
           </button>
+
+          <div className="mb-4 flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg p-3">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Preenchimento automático</p>
+              <p className="text-xs text-gray-500">Busca dados na Shopify, Pagar.me e Correios.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              disabled={autoFillLoading}
+              className="btn-secondary disabled:opacity-50"
+            >
+              {autoFillLoading ? "Buscando..." : "Auto-preencher dados"}
+            </button>
+          </div>
+
+          {autoFillFeedback && (
+            <div className="mb-4 text-sm bg-brand-50 border border-brand-200 text-brand-700 rounded-lg px-3 py-2">
+              {autoFillFeedback}
+            </div>
+          )}
 
           {/* Formulário */}
           <div className="max-w-2xl mx-auto">

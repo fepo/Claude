@@ -1,6 +1,7 @@
 import { getShopifyAPI } from "@/lib/shopify";
 import type { ShopifyOrder } from "@/lib/shopify";
 import type { FormContestacao, EventoRastreio } from "@/types";
+import { fetchTrackingEvents } from "@/lib/tracking";
 
 interface GenerarDefesaRequest {
   chargebackId: string;
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     }> = [
       { name: "Pagar.me", status: "success", message: "Dados carregados" },
       { name: "Shopify", status: "loading", message: "Buscando pedido..." },
-      { name: "Transportadora", status: "pending", message: "Aguardando..." },
+      { name: "Correios / Transportadora", status: "pending", message: "Aguardando..." },
     ];
 
     let shopifyOrder = null;
@@ -116,60 +117,10 @@ export async function POST(req: Request) {
           const trackingNumber = fulfillment.trackingInfo.number;
           const carrier = fulfillment.trackingInfo.company || "Desconhecido";
 
-          // Tenta LinkeTrack se configurado (precisa de token e user/email)
-          const linketrackToken = process.env.LINKETRACK_API_TOKEN;
-          const linketrackUser = process.env.LINKETRACK_USER || process.env.SHOPIFY_STORE_ADMIN_EMAIL;
-
-          if (linketrackToken && linketrackUser) {
-            try {
-              const linketrackUrl = new URL(
-                "https://api.linketrack.com/track/json"
-              );
-              linketrackUrl.searchParams.append("user", linketrackUser);
-              linketrackUrl.searchParams.append("token", linketrackToken);
-              linketrackUrl.searchParams.append("codigo", trackingNumber);
-
-              const trackRes = await fetch(linketrackUrl.toString());
-              const trackData = await trackRes.json();
-
-              if (trackData.resultado === 1 && trackData.eventos) {
-                trackingEvents = trackData.eventos.map(
-                  (evt: {
-                    data: string;
-                    status: string;
-                    local?: string;
-                  }) => ({
-                    data: evt.data || new Date().toISOString().split("T")[0],
-                    descricao: evt.status || "Rastreamento atualizado",
-                  })
-                );
-              }
-
-              steps[2].status = "success";
-              steps[2].message = `${trackingEvents.length} eventos encontrados`;
-            } catch (linkeErr) {
-              console.error("Erro ao consultar LinkeTrack:", linkeErr);
-              // Fallback: cria evento genérico com o código de rastreamento
-              trackingEvents = [
-                {
-                  data: new Date().toISOString().split("T")[0],
-                  descricao: `Rastreado com ${carrier}: ${trackingNumber}`,
-                },
-              ];
-              steps[2].status = "success";
-              steps[2].message = "Rastreamento básico obtido";
-            }
-          } else {
-            // Se LinkeTrack não está configurado, cria evento genérico
-            trackingEvents = [
-              {
-                data: new Date().toISOString().split("T")[0],
-                descricao: `Rastreado com ${carrier}: ${trackingNumber}`,
-              },
-            ];
-            steps[2].status = "success";
-            steps[2].message = "Rastreamento básico obtido";
-          }
+          const trackingResult = await fetchTrackingEvents(trackingNumber, carrier);
+          trackingEvents = trackingResult.events;
+          steps[2].status = "success";
+          steps[2].message = trackingResult.message;
         } else {
           steps[2].status = "success";
           steps[2].message = "Nenhum rastreamento encontrado";
