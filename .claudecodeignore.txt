@@ -1,0 +1,10 @@
+# .claudecodeignore
+node_modules/
+.next/
+out/
+build/
+public/assets/      # Imagens e fontes pesam no contexto
+.git/
+*.docx              # Você usa docx lib, não deixe ele ler os binários
+*.pdf
+.env* # Segurança e economia

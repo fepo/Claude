@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Dashboard from "./components/Dashboard";
+import VerificarDadosModal from "./components/VerificarDadosModal";
 import type {
   FormContestacao,
   Gateway,
@@ -73,6 +74,7 @@ export default function HomePage() {
   const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
   const [mounted, setMounted] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
+  const [showVerificar, setShowVerificar] = useState(false);
 
   // ── Auto-save + carregar auto-save ao montar ────────────
   useEffect(() => {
@@ -89,15 +91,17 @@ export default function HomePage() {
   }, []);
 
   // ── Seleciona contestação do dashboard ────────────────────────────────────
-  const handleSelectChargeback = async (chargeback: any) => {
-    let initialForm = { ...emptyForm };
-
-    // Se veio do webhook, tem rascunho completo pré-preenchido
-    if (chargeback.rascunho) {
-      initialForm = { ...emptyForm, ...chargeback.rascunho };
+  const handleSelectChargeback = (chargeback: any) => {
+    // Se a modal enriqueceu com dados, usa esse form direto
+    if (chargeback._enrichedFormData) {
+      setForm(chargeback._enrichedFormData);
+    } else if (chargeback.rascunho) {
+      // Se veio do webhook, tem rascunho completo pré-preenchido
+      setForm({ ...emptyForm, ...chargeback.rascunho });
     } else {
-      initialForm = {
-        ...initialForm,
+      // Fallback básico (apenas Pagar.me)
+      const initialForm: FormContestacao = {
+        ...emptyForm,
         contestacaoId: chargeback.id,
         dataContestacao: chargeback.createdAt?.split("T")[0] || "",
         numeroPedido: chargeback.orderId || chargeback.chargeId || "",
@@ -106,49 +110,11 @@ export default function HomePage() {
         valorTransacao: String(chargeback.amount || ""),
         tipoContestacao: "desacordo_comercial",
       };
+      setForm(initialForm);
     }
 
-    setForm(initialForm);
     setShowDashboard(false);
     setStep(0);
-
-    // ── Enriquecimento Automático via Shopify ──
-    const searchOrder = chargeback.orderId || chargeback.rascunho?.numeroPedido;
-    if (searchOrder) {
-      console.log(`Buscando pedido ${searchOrder} na Shopify...`);
-      try {
-        const res = await fetch(`/api/shopify/get-order?orderName=${encodeURIComponent(searchOrder)}`);
-        const data = await res.json();
-
-        if (data.success && data.order) {
-          const s = data.order;
-          console.log("Pedido Shopify encontrado:", s.name);
-
-          // Pega o primeiro fulfillment que tiver rastreio
-          const fulfillment = s.fulfillments?.find((f: any) => f.trackingInfo?.number);
-
-          setForm((prev) => ({
-            ...prev,
-            // Preenche dados de logística se encontrados
-            transportadora: fulfillment?.trackingInfo?.company || prev.transportadora,
-            codigoRastreio: fulfillment?.trackingInfo?.number || prev.codigoRastreio,
-            // Se tiver itens na Shopify, substitui ou complementa
-            itensPedido: s.lineItems?.length > 0
-              ? s.lineItems.map((item: any) => ({
-                descricao: item.title,
-                valor: item.price,
-              }))
-              : prev.itensPedido,
-            // Atualiza endereço se disponível
-            enderecoEntrega: s.customer?.defaultAddress
-              ? `${s.customer.defaultAddress.address1}, ${s.customer.defaultAddress.city}, ${s.customer.defaultAddress.province}, ${s.customer.defaultAddress.zip}`
-              : prev.enderecoEntrega,
-          }));
-        }
-      } catch (err) {
-        console.error("Erro ao enriquecer com Shopify:", err);
-      }
-    }
   };
 
   const handleNewManual = () => {
@@ -240,7 +206,12 @@ export default function HomePage() {
   };
 
   // ── Submit ────────────────────────────────────────────
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
+    setShowVerificar(true);
+  };
+
+  const handleConfirmarGerar = async () => {
+    setShowVerificar(false);
     setLoading(true);
     localStorage.setItem("contestacao_form", JSON.stringify(form));
     limparAutoSave(); // Limpa auto-save após exportar com sucesso
@@ -940,6 +911,15 @@ export default function HomePage() {
               )}
             </div>
           </div>
+
+          {/* Modal de verificação de dados */}
+          {showVerificar && (
+            <VerificarDadosModal
+              form={form}
+              onConfirm={handleConfirmarGerar}
+              onBack={() => setShowVerificar(false)}
+            />
+          )}
         </div>
       )}
     </div>
