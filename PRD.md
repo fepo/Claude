@@ -52,6 +52,7 @@ Operadores de e-commerce (PT-BR) que lidam com chargebacks recorrentes.
 | Autofill form via pedido | `POST /api/form/autofill` |
 | Buscar pedido Shopify | `GET /api/shopify/get-order` |
 | Integração Shopify (página) | `/shopify` |
+| Dados unificados Pagar.me + Shopify | `/dados` + `GET /api/dados-unificados` |
 | Persistência SQLite + Prisma | `src/lib/db.ts` |
 | Idempotência de webhooks | modelo `WebhookEvent` |
 | Templates por tipo de contestação | `src/lib/templates/` |
@@ -60,7 +61,6 @@ Operadores de e-commerce (PT-BR) que lidam com chargebacks recorrentes.
 ### Pendentes ⏳
 | Prioridade | Funcionalidade | Detalhe |
 |---|---|---|
-| P1 | Token Shopify completo | Escopos: `read_orders`, `read_customers`, `read_fulfillments` |
 | P1 | Webhook defesas — notificação | Substituir TODOs por `prisma.defesa.update()` + notificar |
 | P2 | Notificações (email/Slack) | Criar `src/lib/notifications.ts` |
 | P2 | Retry de falha Pagar.me | `/api/defesas/aprovar` — tratar reenvio |
