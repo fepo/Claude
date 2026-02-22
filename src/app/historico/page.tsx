@@ -45,6 +45,7 @@ interface Chargeback {
   enderecoEntrega: string | null;
   transportadora: string | null;
   codigoRastreio: string | null;
+  shopifyData: string | null;
   createdAt: string;
   defesas: DefesaResumida[];
 }
@@ -52,6 +53,7 @@ interface Chargeback {
 export default function HistoricoPage() {
   const [chargebacks, setChargebacks] = useState<Chargeback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enriching, setEnriching] = useState<string | null>(null);
   const [filtros, setFiltros] = useState({ tipo: "", status: "", dataInicio: "", dataFim: "" });
 
   useEffect(() => {
@@ -73,6 +75,36 @@ export default function HistoricoPage() {
   });
 
   const totalValor = filtrados.reduce((sum, cb) => sum + parseFloat(cb.valorTransacao ?? "0"), 0);
+
+  const handleEnrich = async (chargebackId: string) => {
+    setEnriching(chargebackId);
+    try {
+      const res = await fetch("/api/shopify/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chargebackId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Recarregar dados
+        const r = await fetch("/api/pagarme/chargebacks");
+        const updated = await r.json();
+        setChargebacks(Array.isArray(updated) ? updated : []);
+      } else {
+        alert(`Erro ao enriquecer: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Erro ao conectar com Shopify");
+      console.error(err);
+    } finally {
+      setEnriching(null);
+    }
+  };
+
+  const parseShopifyData = (raw: string | null) => {
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
 
@@ -163,6 +195,7 @@ export default function HistoricoPage() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Valor</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Cartão</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Rastreio</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-900">Shopify</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Status</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Defesas</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-900">Data</th>
@@ -201,6 +234,32 @@ export default function HistoricoPage() {
                           {cb.transportadora && <div className="text-xs text-gray-400">{cb.transportadora}</div>}
                         </div>
                       ) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const shopify = parseShopifyData(cb.shopifyData);
+                        if (shopify) {
+                          return (
+                            <div>
+                              <span className="inline-block bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-medium">
+                                ✅ {shopify.orderName || "Vinculado"}
+                              </span>
+                              {shopify.fulfillmentStatus && (
+                                <div className="text-xs text-gray-400 mt-0.5">{shopify.fulfillmentStatus}</div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return (
+                          <button
+                            onClick={() => handleEnrich(cb.id)}
+                            disabled={enriching === cb.id}
+                            className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 disabled:opacity-50 font-medium"
+                          >
+                            {enriching === cb.id ? "..." : "🔗 Buscar"}
+                          </button>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[cb.status] ?? "bg-gray-100 text-gray-700"}`}>

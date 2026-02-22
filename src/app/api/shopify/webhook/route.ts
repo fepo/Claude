@@ -1,34 +1,5 @@
 import crypto from "crypto";
-
-// Reutilizar as mesmas funções de Store do webhook Pagar.me
-const BLOB_KEY = "chargebacks-store.json";
-
-async function readStore(): Promise<any[]> {
-  try {
-    const { list } = await import("@vercel/blob");
-    const { blobs } = await list({ prefix: BLOB_KEY });
-    if (!blobs.length) return [];
-    const res = await fetch(blobs[0].url);
-    return await res.json();
-  } catch {
-    const g = globalThis as any;
-    return g._cbstore ?? [];
-  }
-}
-
-async function writeStore(data: any[]) {
-  try {
-    const { put } = await import("@vercel/blob");
-    await put(BLOB_KEY, JSON.stringify(data), {
-      access: "public",
-      contentType: "application/json",
-      allowOverwrite: true,
-    });
-  } catch {
-    const g = globalThis as any;
-    g._cbstore = data;
-  }
-}
+import prisma from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -65,6 +36,16 @@ export async function POST(req: Request) {
 
     const payload = JSON.parse(bodyText);
 
+    // ── Idempotência via WebhookEvent ──
+    const eventExternalId = `shopify_${topic}_${payload.id ?? payload.order_id ?? Date.now()}`;
+    const existing = await prisma.webhookEvent.findUnique({
+      where: { source_externalId: { source: "shopify", externalId: eventExternalId } },
+    });
+    if (existing) {
+      console.log(`[Shopify webhook] Evento já processado: ${eventExternalId}`);
+      return Response.json({ received: true, duplicate: true });
+    }
+
     // ── Extrair dados do payload ──
     let orderName = "";
     let customerEmail = "";
@@ -75,12 +56,10 @@ export async function POST(req: Request) {
     let trackingUrl = "";
 
     if (topic === "orders/fulfilled") {
-      // orders/fulfilled: name = "#1234", fulfillment_status, email
       orderName = payload.name || "";
       customerEmail = payload.email || "";
       totalPrice = parseFloat(payload.total_price) || 0;
       fulfillmentStatus = payload.fulfillment_status || "fulfilled";
-
       const fulfillment = payload.fulfillments?.[0];
       if (fulfillment?.tracking_info) {
         trackingNumber = fulfillment.tracking_info.number || "";
@@ -88,7 +67,6 @@ export async function POST(req: Request) {
         trackingUrl = fulfillment.tracking_info.url || "";
       }
     } else if (topic === "fulfillments/create") {
-      // fulfillments/create: order_name (sem #), email pode não estar
       const orderNameRaw = payload.order_name || "";
       orderName = orderNameRaw.startsWith("#") ? orderNameRaw : `#${orderNameRaw}`;
       customerEmail = payload.email || payload.customer?.email || "";
@@ -103,73 +81,74 @@ export async function POST(req: Request) {
       `[Shopify webhook] ${topic} | orderName=${orderName} | email=${customerEmail} | tracking=${trackingNumber}`
     );
 
-    // ── Buscar chargeback correspondente ──
-    // Matching: email === customerEmail, e valor aproximado (±5%)
-    const chargebacks = await readStore();
+    // ── Buscar chargeback correspondente no DB ──
+    // SQLite é case-insensitive por padrão para ASCII
+    const chargebacks = await prisma.chargeback.findMany({
+      where: customerEmail
+        ? { emailCliente: customerEmail.toLowerCase() }
+        : undefined,
+    });
+
+    // Matching: email + valor aproximado (±5%)
     const candidates = chargebacks.filter((cb) => {
-      if (cb.customerEmail?.toLowerCase() !== customerEmail?.toLowerCase())
-        return false;
+      if (cb.emailCliente?.toLowerCase() !== customerEmail?.toLowerCase()) return false;
+      const cbAmount = parseFloat(cb.valorTransacao ?? "0");
+      if (totalPrice === 0 || cbAmount === 0) return true;
+      const diff = Math.abs(cbAmount - totalPrice) / cbAmount;
+      return diff <= 0.05;
+    });
 
-      if (totalPrice === 0 || cb.amount === 0) return true; // Se um é 0, aceita
-
-      const diff = Math.abs(cb.amount - totalPrice) / cb.amount;
-      return diff <= 0.05; // 5% de tolerância
+    // ── Registrar evento de webhook ──
+    await prisma.webhookEvent.create({
+      data: {
+        source: "shopify",
+        eventType: topic,
+        externalId: eventExternalId,
+        payload: bodyText,
+        processed: candidates.length > 0,
+      },
     });
 
     if (candidates.length === 0) {
-      console.log(
-        `[Shopify webhook] Nenhum chargeback encontrado para ${customerEmail}`
-      );
-      return Response.json({
-        received: true,
-        matched: false,
-        message: `Nenhum chargeback encontrado para ${customerEmail}`,
-      });
+      console.log(`[Shopify webhook] Nenhum chargeback encontrado para ${customerEmail}`);
+      return Response.json({ received: true, matched: false });
     }
 
-    // Se múltiplos candidatos, pegar o mais recente
-    const matchedChargeback = candidates.sort(
+    // Pegar o mais recente
+    const matched = candidates.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )[0];
 
-    // ── Enriquecer o record ──
-    matchedChargeback.shopifyOrderName = orderName;
-    matchedChargeback.shopifyFulfillmentStatus = fulfillmentStatus;
-    matchedChargeback.shopifyTrackingNumber = trackingNumber;
-    matchedChargeback.shopifyTrackingCompany = trackingCompany;
-    matchedChargeback.shopifyTrackingUrl = trackingUrl;
-    matchedChargeback.shopifyWebhookEvent = topic;
-    matchedChargeback.shopifyWebhookReceivedAt = new Date().toISOString();
+    // ── Enriquecer chargeback no DB ──
+    await prisma.chargeback.update({
+      where: { id: matched.id },
+      data: {
+        numeroPedido: matched.numeroPedido || orderName || undefined,
+        transportadora: matched.transportadora || trackingCompany || undefined,
+        codigoRastreio: matched.codigoRastreio || trackingNumber || undefined,
+        shopifyData: JSON.stringify({
+          orderName,
+          fulfillmentStatus,
+          trackingNumber,
+          trackingCompany,
+          trackingUrl,
+          webhookEvent: topic,
+          webhookReceivedAt: new Date().toISOString(),
+        }),
+      },
+    });
 
-    // ── Também atualizar rascunho para pré-preencher ──
-    if (matchedChargeback.rascunho) {
-      matchedChargeback.rascunho.numeroPedido = orderName;
-      if (trackingNumber) {
-        matchedChargeback.rascunho.codigoRastreio = trackingNumber;
-      }
-      if (trackingCompany) {
-        matchedChargeback.rascunho.transportadora = trackingCompany;
-      }
-    }
-
-    // ── Salvar de volta ──
-    const updated = chargebacks.map((cb) =>
-      cb.id === matchedChargeback.id ? matchedChargeback : cb
-    );
-    await writeStore(updated);
-
-    console.log(
-      `✅ [Shopify webhook] Chargeback ${matchedChargeback.id} enriquecido com dados de fulfillment`
-    );
+    console.log(`✅ [Shopify webhook] Chargeback ${matched.id} enriquecido com dados de fulfillment`);
 
     return Response.json({
       received: true,
       matched: true,
-      chargebackId: matchedChargeback.id,
+      chargebackId: matched.id,
       message: `Chargeback atualizado com dados de ${orderName}`,
     });
   } catch (error) {
     console.error("[Shopify webhook] Erro:", error);
+    // Sempre retorna 200 para evitar retries infinitos
     return Response.json({ received: true, error: "Logged internally" });
   }
 }
