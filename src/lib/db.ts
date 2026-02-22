@@ -4,7 +4,14 @@ import Database from "better-sqlite3";
 import path from "path";
 
 function createPrismaClient() {
-  const dbPath = (process.env.DATABASE_URL ?? "file:./dev.db").replace("file:", "");
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (process.env.NODE_ENV === "production" && !databaseUrl) {
+    throw new Error("DATABASE_URL não configurada em produção");
+  }
+
+  const resolvedUrl = databaseUrl ?? "file:./dev.db";
+  const dbPath = resolvedUrl.replace("file:", "");
   const sqlite = new Database(path.resolve(process.cwd(), dbPath));
   const adapter = new PrismaBetterSqlite3({ url: dbPath } as any);
   void sqlite; // adapter manages the connection

@@ -1,5 +1,9 @@
 .vercel
+.env
+.env.*
 .env*.local
+dev.db
+*.db
 node_modules
 .next/
 
