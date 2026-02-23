@@ -10,8 +10,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const PASSWORD = process.env.PROTECT_PASSWORD || "minhasenha";
-const COOKIE_NAME = "auth";
+const PASSWORD = process.env.PROTECT_PASSWORD ?? "minhasenha";
+const COOKIE_NAME = "auth_token";
+const COOKIE_VALUE = "authenticated";
 
 function loginPage(error = false): NextResponse {
   const html = `<!DOCTYPE html>
@@ -37,7 +38,7 @@ function loginPage(error = false): NextResponse {
   <div class="card">
     <h1>Acesso restrito</h1>
     <p>Digite a senha para continuar.</p>
-    <form method="POST">
+    <form method="POST" action="/">
       <input type="password" name="password" placeholder="Senha" autofocus required />
       <button type="submit">Entrar</button>
       ${error ? '<p class="error">Senha incorreta.</p>' : ""}
@@ -55,14 +56,22 @@ function loginPage(error = false): NextResponse {
 export async function middleware(request: NextRequest) {
   // POST = tentativa de login
   if (request.method === "POST") {
-    const body = await request.text();
-    const params = new URLSearchParams(body);
-    const password = params.get("password")?.trim();
+    let password = "";
 
-    if (password && password === PASSWORD) {
+    try {
+      const body = await request.text();
+      // body ex.: "password=LOFIBEATS2026"
+      const params = new URLSearchParams(body);
+      password = (params.get("password") ?? "").trim();
+    } catch {
+      return loginPage(true);
+    }
+
+    if (password === PASSWORD) {
       const url = request.nextUrl.clone();
+      url.pathname = "/";
       const response = NextResponse.redirect(url);
-      response.cookies.set(COOKIE_NAME, PASSWORD, {
+      response.cookies.set(COOKIE_NAME, COOKIE_VALUE, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -77,7 +86,7 @@ export async function middleware(request: NextRequest) {
 
   // GET — verifica cookie
   const cookie = request.cookies.get(COOKIE_NAME);
-  if (cookie?.value === PASSWORD) {
+  if (cookie?.value === COOKIE_VALUE) {
     return NextResponse.next();
   }
 
