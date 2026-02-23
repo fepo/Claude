@@ -1,14 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildPrompt, CACHED_CONTEXT } from "@/lib/prompt";
 import type { FormContestacao } from "@/types";
+import { formatEnrichedContext, type EnrichedContext } from "@/lib/enrichment";
 
 const client = new Anthropic();
 
 export async function POST(req: Request) {
-  const data: FormContestacao = await req.json();
+  const body = await req.json();
+
+  // Suporta formato novo { formData, enrichedContext } e legado (FormContestacao direto)
+  const data: FormContestacao = body.formData ?? body;
+  const enrichedContext: EnrichedContext | null = body.enrichedContext ?? null;
 
   // Separa conteúdo cacheado do dinâmico
   const dynamicContent = buildPrompt(data);
+
+  // Injeta contexto enriquecido se disponível (sem alterar buildPrompt)
+  const supplementary = enrichedContext
+    ? `\n\n${formatEnrichedContext(enrichedContext)}`
+    : "";
 
   const stream = client.messages.stream({
     model: "claude-opus-4-6",
@@ -25,7 +35,7 @@ export async function POST(req: Request) {
     messages: [
       {
         role: "user",
-        content: dynamicContent,
+        content: dynamicContent + supplementary,
       },
     ],
   });

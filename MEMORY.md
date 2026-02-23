@@ -85,8 +85,6 @@ prisma/
 
 ---
 
----
-
 ## Shopify API — Campos 2024-10 (IMPORTANTE)
 A API 2024-10 mudou nomes de vários campos GraphQL. As queries e o mapper em `shopify.ts` já foram corrigidos:
 - `price` → `originalUnitPriceSet { shopMoney { amount currencyCode } }`
