@@ -55,10 +55,11 @@ function loginPage(error = false): NextResponse {
 export async function middleware(request: NextRequest) {
   // POST = tentativa de login
   if (request.method === "POST") {
-    const formData = await request.formData();
-    const password = formData.get("password");
+    const body = await request.text();
+    const params = new URLSearchParams(body);
+    const password = params.get("password")?.trim();
 
-    if (password === PASSWORD) {
+    if (password && password === PASSWORD) {
       const url = request.nextUrl.clone();
       const response = NextResponse.redirect(url);
       response.cookies.set(COOKIE_NAME, PASSWORD, {
